@@ -1,0 +1,3 @@
+this is test you can trust with probability 1
+We become 1
+0 tolerance

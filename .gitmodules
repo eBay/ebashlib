@@ -1,0 +1,3 @@
+[submodule "bashlib/shellOptions"]
+	path = bashlib/shellOptions
+	url = https://github.com/davvil/shellOptions.git
