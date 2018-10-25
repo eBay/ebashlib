@@ -1,0 +1,3 @@
+this is a test you can trust with probability 1.0000001
+We become 0.9999999
+1E-08 tolerance
