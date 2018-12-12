@@ -47,8 +47,8 @@ Main Developer:
 
 Additional code contributions from:
 
-* Gregor Leusch (fileSanity)
-* Leonard Dahlmann (bug fix)
+* Gregor Leusch 
+* Leonard Dahlmann 
 
 Feedback and legal support:
 
