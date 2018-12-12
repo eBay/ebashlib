@@ -70,29 +70,34 @@ Returns:
 
 * `GITLABEL_OK` if no uncommited changes, list of changes/`GITLABEL_FAIL` else
 
-### `GITLABEL_SUGGEST_IMAGE_TAG(directory)`
+### `GITLABEL_SUGGEST_IMAGE_TAG(directory, [snapshot-suffix])`
 
-make a suggestion for a tag name of the current repo status
+Make a suggestion for a tag name of the current repo status
 
-the logic is:
- * if there is a git tag on the main submodule commit (even if upstream), 
-   AND 
-   if there are no uncommited changes, it will use
-     this git tag (thus assuming it is a release)
- * if the current commit is untagged, the script looks for a `VERSION` file and
-   assumes that the first token in this file marks the version number. The script
-   further assumes that this is only a snapshot and names the tag
-   "<version>-snapshot" 
- * if neither tag nor version could be found, the user is on his/her own. The tag is called
-   "dev"
+* If there are uncommitted files in the repo         --> `dev`  (and fail)
+* If this is a tagged version                        --> `<tagname>`
+* If there is a file called VERSION in the repo root --> `<VERSION>-<commit>`
+* Else, if we have a branch name                     --> `<BRANCHNAME>-<commit>`
+* (If everything fails                               --> `dev` (and fail)
+
+Here, `<commit>` is the short commit ID (e.g. `1cae95e`). If you pass 
+a different name as second parameter, e.g. `snapshot`, this will use that
+parameter instead of the commit.
+
+ E.g. `GITLABEL_SUGGEST_IMAGE_TAG .` --> `master-1cae95e`,
+      `GITLABEL_SUGGEST_IMAGE_TAG . snapshot` --> `master-snapshot`
+
+
 
 Parameters:
 
-* `directory` a directory within a git repository (defaults to .)
+*  `directory`: a directory within a git repository (defaults to .)
+*  `[snapshot]`: an optional suffix to be used instead of the git commit, e.g. 'snapshot'
 
 Returns:
 
 * `<suggestion>`/`GITLABEL_OK` if no uncommited changes, or dev/`GITLABEL_FAIL`
+
 
 ### `GITLABEL_COMMIT(directory)`
 

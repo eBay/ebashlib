@@ -84,12 +84,21 @@ function GITLABEL_GET_UPSTREAM_URL () {
 # :returns: tag name/GITLABEL_OK if found, "untagged"/GITLABEL_FAIL else
 function GITLABEL_GET_TAG() {
     local directory=${1:-"."}
-    GIT_TAG="$( git -C "${directory}" describe --exact-match --tags HEAD 2> /dev/null )"
-    if [[ "$?" -ne "0" ]]; then
-        LOGGER_DEBUG "Could not detect a repository tag attached to current commit."
-        echo "untagged"
+
+    if GITLABEL_CHECK_UNCOMMITED_CHANGES "${directory}" > /dev/null
+    then
+        GIT_TAG="$( git -C "${directory}" describe --exact-match --tags HEAD 2> /dev/null )"
+        if [[ "$?" -ne "0" ]]; then
+            LOGGER_DEBUG "Could not detect a repository tag attached to current commit."
+            echo -n "untagged"
+            return "${GITLABEL_FAIL}"
+        fi
+    else
+        LOGGER_DEBUG "Branch contains uncommitted files."
+        echo -n "untagged"
         return "${GITLABEL_FAIL}"
     fi
+        
     echo ${GIT_TAG}
     return "${GITLABEL_OK}"
 }
@@ -134,35 +143,51 @@ function GITLABEL_CHECK_UNCOMMITED_CHANGES() {
     fi
 }
 
-# make a suggestion for a tag name of the current repo status
+# Make a suggestion for a tag name of the current repo status
 #
-# the logic is:
-#  * if there is a git tag on the main submodule commit (even if upstream), 
-#    AND 
-#    if there are no uncommited changes, it will use
-#      this git tag (thus assuming it is a release)
-#  * if the current commit is untagged, the script looks for a `VERSION` file and
-#    assumes that the first token in this file marks the version number. The script
-#    further assumes that this is only a snapshot and names the tag
-#    "<version>-snapshot" 
-#  * if neither tag nor version could be found, the user is on his/her own. The tag is called
-#    "dev"
+#  * If there are uncommitted files in the repo         --> "dev"  (and fail)
+#  * If this is a tagged version                        --> "<tagname>"
+#  * If there is a file called VERSION in the repo root --> "<VERSION>-<commit>"
+#  * Else, if we have a branch name                     --> "<BRANCHNAME>-<commit>"
+#  * (If everything fails                               --> "dev" (and fail)
+#  
+#  Here, "<commit>" is the short commit ID (e.g. '1cae95e'). If you pass 
+#  a different name as second parameter, e.g. `snapshot`, this will use that
+#  parameter instead of the commit.
+# 
+#  E.g. `GITLABEL_SUGGEST_IMAGE_TAG .` --> 'master-1cae95e',
+#       `GITLABEL_SUGGEST_IMAGE_TAG . snapshot` --> 'master-snapshot'
+#
 # :param directory: a directory within a git repository (defaults to .)
+# :param [snapshot]: a suffix to be used instead of the git commit, e.g. 'snapshot'
 # :returns: tag name suggestion/GITLABEL_OK or dev/GITLABEL_FAIL
+
 function GITLABEL_SUGGEST_IMAGE_TAG() {
     local directory=${1:-"."}
-    suggestedTag="dev"
+    local snapshot=${2}
+    if [[ -z "${snapshot}" ]]
+    then
+        # Get label for snapshot from commit
+        snapshot=$(git -C "${directory}" show --no-patch --pretty='format:%h')
+    fi
+     
+    local suggestedTag="dev"
+
+
+    # First check whether there are uncommitted changes --
+    # in this case we always return suggestedTag
+    
+    gitChanges="$( GITLABEL_CHECK_UNCOMMITED_CHANGES "${directory}" )"
+    if [[ "$?" != "${GITLABEL_OK}" ]]; then
+        LOGGER_WARNING "Not using current git tag ${gitTag} because of uncommited changes"
+        echo "${suggestedTag}" && return ${GITLABEL_FAIL}
+    fi
+
+
     # check whether our current status is also tagged
     gitTag="$( GITLABEL_GET_TAG "${directory}" )"
     if [[ "$?" == "${GITLABEL_OK}" ]]; then
-        # ok, there is a tag. But is our current status clean? 
-        # (NOTE) not checking for untracked files here... 
-        gitChanges="$( GITLABEL_CHECK_UNCOMMITED_CHANGES "${directory}" )"
-        if [[ "$?" == "${GITLABEL_OK}" ]]; then
-            echo "${gitTag}" && return ${GITLABEL_OK}
-        else
-            LOGGER_WARNING "Not using current git tag ${gitTag} because of uncommited changes"
-        fi
+        (echo -n "${gitTag}" | _GITLABEL_FILTER_TAG)  && return ${GITLABEL_OK}
     fi
 
     # no tag... ok. Maybe there is a VERSION file at the top level path?
@@ -172,14 +197,23 @@ function GITLABEL_SUGGEST_IMAGE_TAG() {
     # is there a file that tells us which version we are looking at
     if [ -f "${versionFile}" ]; then
         assumedVersion="$( head -n 1 "${versionFile}" | awk '{print $1}' )"
-        suggestedTag="${assumedVersion}-snapshot"
+        suggestedTag="${assumedVersion}-${snapshot}"
         LOGGER_DEBUG "Using version info in file ${versionFile}. Suggesting ${suggestedTag}"
-        echo "${suggestedTag}" && return ${GITLABEL_OK}
+        (echo -n "${suggestedTag}" | _GITLABEL_FILTER_TAG) && return ${GITLABEL_OK}
     fi
+
+    # Otherwise, is there at least a Branch name we can use?
+    (echo -n "$(git -C "${directory}" rev-parse --abbrev-ref HEAD)-${snapshot}" |_GITLABEL_FILTER_TAG) && return ${GITLABEL_OK}
 
     LOGGER_DEBUG "Unable to detect meaningful name... setting to default: ${suggestedTag}"
     echo "${suggestedTag}" && return ${GITLABEL_FAIL}
 }
+
+# Remove illegal characters from tag
+function _GITLABEL_FILTER_TAG() {
+    sed -e 's/[^a-zA-Z0-9.-]//g' 
+}
+
 
 # get current commit hash (but warn on uncommited changes)
 #
