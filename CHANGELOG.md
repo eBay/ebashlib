@@ -1,6 +1,13 @@
 Changelog
 =========
 
+Version 0.10.1
+--------------
+
+* bug fixes (gitlabel):
+  * correct behaviour for uncomitted branches
+  * unit tests
+
 Version 0.10.0 ("[Monica](https://en.wikipedia.org/wiki/Monica_Zetterlund)")
 ----------------------------------------------------------------------------
 
